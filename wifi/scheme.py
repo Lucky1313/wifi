@@ -211,6 +211,65 @@ class Scheme(object):
             return Connection(scheme=self, ip_address=self.options["address"][0])
 
 
+class Netctl_Scheme(Scheme):
+
+    default = "/etc/netctl/interfaces/"
+
+    @classmethod
+    def for_file(cls, default):
+        return type(cls)(cls.__name__, (cls,), {
+            'default': default,
+        })
+
+    def __init__(self, interface, name, type='dhcp', options=None):
+        super(Netctl_Scheme, self).__init__(interface, name, type, options)
+        convert_options(self.options)
+
+    def __str__(self):
+        iface = "Interface=" + self.interface
+        ip = "IP=" + self.type
+        options = '\n'.join(["{k}={v}".format(k=k, v=v) for k in self.options.keys() for v in self.options[k]])
+        return '\n'.join([iface, ip, options])
+
+    @classmethod
+    def all(cls):
+        for interface in os.listdir(self.default):
+            with open(interface, 'r') as f:
+                yield extract_scheme(interface, f.read(), scheme_class=cls)
+
+    @classmethod
+    def for_cell(cls, interface, name, cell, passkey=None):
+        s = super(Netctl_Scheme, self).for_cell(cls, interface, name, cell, passkey)
+        covert_options(s.options)
+        return s
+
+    def save(self, allow_overwrite=False):
+        existing_scheme = self.find(self.interface, self.name)
+        if existing_scheme:
+            if not allow_overwrite:
+                raise RuntimeError("Scheme for interface %s named %s already exists and overwrite is forbidden" % (self.interface, self.name))
+            existing_scheme.delete()
+
+        with open(self.default + self.iface, 'a') as f:
+            f.write(str(self))
+
+    def delete(self):
+        os.remove((self.default + self.iface))
+
+    def activate(self):
+        self.deactivate()
+        self.save(allow_overwrite=True)
+        try:
+            ifconfig_output = subprocess.check_output(['/sbin/netctl', 'start', self.iface()], stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            self.logger.exception("Error while trying to connect to %s" % self.iface)
+            self.logger.error("Output: %s" % e.output)
+            raise InterfaceError("Failed to connect to %r: %s" % (self, e.message))
+
+    def deactivate(self):
+        subprocess.check_output(['/sbin/ifconfig', self.interface, 'down'], stderr=subprocess.STDOUT)
+
+
 class Connection(object):
     """
     The connection object returned when connecting to a Scheme.
@@ -218,7 +277,6 @@ class Connection(object):
     def __init__(self, scheme, ip_address):
         self.scheme = scheme
         self.ip_address = ip_address
-
 
 # TODO: support other interfaces
 scheme_re = re.compile(r'iface\s+(?P<interface>wlan\d?)(?:-(?P<name>\w+))?\s+inet\s+(?P<type>\w+)')
@@ -250,3 +308,38 @@ def extract_schemes(interfaces, scheme_class=Scheme):
 
             yield scheme
 
+def convert_options(options):
+    if 'address' in options:
+        options['Address'] = [''.join(options['ip'] + ['/'] + options['netmask'])]
+        del options['ip']
+        del options['netmask']
+        del options['broadcast']
+    if 'wpa-ssid' in options:
+        options['Connection'] = ['wireless']
+        options['Security'] = ['wpa']
+        options['ESSID'] = options['wpa-ssid']
+        options['Key'] = options['wpa-psk']
+        del options['wpa-ssid']
+        del options['wpa-psk']
+        del options['wireless-channel']
+    elif 'wireless-essid' in options:
+        options['Connection'] = ['wireless']
+        options['ESSID'] = options['wireless-essid']
+        if 'wireless-key' in options:
+            options['Security'] = ['wep']
+            options['Key'] = options['wireless-key']
+            del options['wireless-key']
+        else:
+            options['Security'] = ['none']
+        del options['wireless-essid']
+        del options['wireless-channel']
+
+def extract_scheme(scheme, config, scheme_class=Scheme):
+    interface, name = scheme.split('-')
+    for line in scheme.splitlines():
+        k, v = line.split('=')
+        options[k] = [v]
+    type = options['IP']
+    del options['IP']
+    scheme = scheme_class(interface, name, type=type, options=options)
+    return scheme
