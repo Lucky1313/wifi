@@ -1,4 +1,5 @@
 import re
+import os
 import itertools
 import logging
 
@@ -211,7 +212,7 @@ class Scheme(object):
             return Connection(scheme=self, ip_address=self.options["address"][0])
 
 
-class Netctl_Scheme(Scheme):
+class NetctlScheme(Scheme):
 
     default = "/etc/netctl/interfaces/"
 
@@ -222,7 +223,7 @@ class Netctl_Scheme(Scheme):
         })
 
     def __init__(self, interface, name, type='dhcp', options=None):
-        super(Netctl_Scheme, self).__init__(interface, name, type, options)
+        super(NetctlScheme, self).__init__(interface, name, type, options)
         convert_options(self.options)
 
     def __str__(self):
@@ -233,15 +234,10 @@ class Netctl_Scheme(Scheme):
 
     @classmethod
     def all(cls):
-        for interface in os.listdir(self.default):
-            with open(interface, 'r') as f:
-                yield extract_scheme(interface, f.read(), scheme_class=cls)
-
-    @classmethod
-    def for_cell(cls, interface, name, cell, passkey=None):
-        s = super(Netctl_Scheme, self).for_cell(cls, interface, name, cell, passkey)
-        covert_options(s.options)
-        return s
+        for interface in os.listdir(cls.default):
+            if os.path.isfile(interface):
+                with open(interface, 'r') as f:
+                    yield extract_scheme(interface, f.read(), scheme_class=cls)
 
     def save(self, allow_overwrite=False):
         existing_scheme = self.find(self.interface, self.name)
@@ -250,7 +246,7 @@ class Netctl_Scheme(Scheme):
                 raise RuntimeError("Scheme for interface %s named %s already exists and overwrite is forbidden" % (self.interface, self.name))
             existing_scheme.delete()
 
-        with open(self.default + self.iface, 'a') as f:
+        with open(self.default + self.iface, 'w') as f:
             f.write(str(self))
 
     def delete(self):
@@ -260,7 +256,7 @@ class Netctl_Scheme(Scheme):
         self.deactivate()
         self.save(allow_overwrite=True)
         try:
-            ifconfig_output = subprocess.check_output(['/sbin/netctl', 'start', self.iface()], stderr=subprocess.STDOUT)
+            ifconfig_output = subprocess.check_output(['/sbin/netctl', 'start', self.iface], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             self.logger.exception("Error while trying to connect to %s" % self.iface)
             self.logger.error("Output: %s" % e.output)
