@@ -214,7 +214,7 @@ class Scheme(object):
 
 class NetctlScheme(Scheme):
 
-    default = "/etc/netctl/interfaces/"
+    default = "/etc/netctl/"
 
     @classmethod
     def for_file(cls, default):
@@ -306,8 +306,8 @@ def extract_schemes(interfaces, scheme_class=Scheme):
 
 def convert_options(options):
     if 'address' in options:
-        options['Address'] = [''.join(options['ip'] + ['/'] + options['netmask'])]
-        del options['ip']
+        options['Address'] = [''.join(options['address'] + ['/'] + options['netmask'])]
+        del options['address']
         del options['netmask']
         del options['broadcast']
     if 'wpa-ssid' in options:
@@ -329,8 +329,10 @@ def convert_options(options):
             options['Security'] = ['none']
         del options['wireless-essid']
         del options['wireless-channel']
+    if 'Connection' not in options:
+        options['Connection'] = ['ethernet']
 
-def extract_scheme(scheme, config, scheme_class=Scheme):
+def extract_scheme(scheme, config, scheme_class=NetctlScheme):
     interface, name = scheme.split('-')
     for line in scheme.splitlines():
         k, v = line.split('=')
