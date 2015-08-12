@@ -229,7 +229,7 @@ class NetctlScheme(Scheme):
     def __str__(self):
         iface = "Interface=" + self.interface
         ip = "IP=" + self.type
-        options = '\n'.join(["{k}={v}".format(k=k, v=v) for k in self.options.keys() for v in self.options[k]])
+        options = '\n'.join(["{k}={v}".format(k=k, v=v).replace(' ', '\ ') for k in self.options.keys() for v in self.options[k]])
         return '\n'.join([iface, ip, options])
 
     @classmethod
