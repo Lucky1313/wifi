@@ -263,6 +263,7 @@ class NetctlScheme(Scheme):
             raise InterfaceError("Failed to connect to %r: %s" % (self, e.message))
 
     def deactivate(self):
+        subprocess.check_output(['/sbin/netctl', 'stop', self.iface], stderr=subprocess.STDOUT)
         subprocess.check_output(['/sbin/ifconfig', self.interface, 'down'], stderr=subprocess.STDOUT)
 
 
