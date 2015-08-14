@@ -256,14 +256,14 @@ class NetctlScheme(Scheme):
         self.deactivate()
         self.save(allow_overwrite=True)
         try:
-            ifconfig_output = subprocess.check_output(['/sbin/netctl', 'start', self.iface], stderr=subprocess.STDOUT)
+            ifconfig_output = subprocess.check_output(['/sbin/netctl', 'enable', self.iface], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             self.logger.exception("Error while trying to connect to %s" % self.iface)
             self.logger.error("Output: %s" % e.output)
             raise InterfaceError("Failed to connect to %r: %s" % (self, e.message))
 
     def deactivate(self):
-        subprocess.check_output(['/sbin/netctl', 'stop', self.iface], stderr=subprocess.STDOUT)
+        subprocess.check_output(['/sbin/netctl', 'disable', self.iface], stderr=subprocess.STDOUT)
         subprocess.check_output(['/sbin/ifconfig', self.interface, 'down'], stderr=subprocess.STDOUT)
 
 
